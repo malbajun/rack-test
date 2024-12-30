@@ -222,7 +222,8 @@ module Rack
         # Compute the next location by appending the location header with the
         # last request, as per https://tools.ietf.org/html/rfc7231#section-7.1.2
         # Adding two absolute locations returns the right-hand location
-        next_location = URI.parse(last_request.url) + URI.parse(last_response['Location'])
+        next_location = URI.parse(URI::Parser.new.escape(last_request.url)) +
+           URI.parse(URI::Parser.new.escape(last_response['Location']))
 
         custom_request(
           request_method,
@@ -269,7 +270,7 @@ module Rack
 
       # Normalize URI based on given URI/path and environment.
       def parse_uri(path, env)
-        uri = URI.parse(path)
+        uri = URI.parse(URI::Parser.new.escape(path))
         uri.path = "/#{uri.path}" unless uri.path.start_with?('/')
         uri.host ||= @default_host
         uri.scheme ||= 'https' if env['HTTPS'] == 'on'
