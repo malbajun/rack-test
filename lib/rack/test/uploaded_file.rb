@@ -3,6 +3,7 @@
 require 'fileutils'
 require 'tempfile'
 require 'stringio'
+require 'mimemagic'
 
 module Rack
   module Test
@@ -28,16 +29,19 @@ module Rack
       # content_type :: MIME type of the file
       # binary :: Whether the file should be set to binmode (content treated as binary).
       # original_filename :: The filename to use for the file. Required if content is StringIO, optional override if not
-      def initialize(content, content_type = 'text/plain', binary = false, original_filename: nil)
-        @content_type = content_type
+      def initialize(content, content_type = nil, binary = false, original_filename: nil)
         @original_filename = original_filename
+        @content_type = content_type
 
         case content
         when StringIO
           initialize_from_stringio(content)
+        when IO
+          initialize_from_file(content)
         else
           initialize_from_file_path(content)
         end
+        @content_type ||= 'text/plain'
 
         @tempfile.binmode if binary
       end
@@ -74,10 +78,18 @@ module Rack
 
       private
 
+      # Use the File as the tempfile.
+      def initialize_from_file(file)
+        @original_filename ||= ::File.basename(file.path)
+        @content_type ||= MimeMagic.by_magic(file.read)&.type
+        @tempfile = file
+      end
+
       # Use the StringIO as the tempfile.
       def initialize_from_stringio(stringio)
         raise(ArgumentError, 'Missing `original_filename` for StringIO object') unless @original_filename
 
+        @content_type ||= MimeMagic.by_magic(file.read)&.type
         @tempfile = stringio
       end
 
@@ -86,6 +98,7 @@ module Rack
       def initialize_from_file_path(path)
         raise "#{path} file does not exist" unless ::File.exist?(path)
 
+        @content_type ||= MimeMagic.by_magic(IO.read(path))&.type
         @original_filename ||= ::File.basename(path)
         extension = ::File.extname(@original_filename)
 
